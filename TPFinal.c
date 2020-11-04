@@ -1,10 +1,11 @@
+
 /*
 ===============================================================================
  Name        : TPFinal.c
- Author      : $(author)
- Version     :
- Copyright   : $(copyright)
- Description : main definition
+ Author      : Daniele Francisco & Gonzalez Julián
+ Version     : 1.1
+ Copyright   :
+ Description : Consola de juegos en LPC1769
 ===============================================================================
 */
 
@@ -38,20 +39,38 @@ void confTIMER(uint32_t ticks);
 void confADC(void);
 void ADCOff(void);
 
-void menu(void);
+void menuPpal(void);
+void menuRC(void);
+//funcion rx para obtener nombre de usuario?
 
-void sendMenu(uint32_t dificultad);
+void sendMenuPpal(uint8_t juego);
+void sendMenuRC(uint32_t dificultad);
 void sendAuto(uint8_t lado);//funcion para dibujar el auto
 void sendObstaculo(uint8_t tipo, uint8_t lado);//funcion para dibujar obstaculo
+void sendAuto_Obst(uint8_t lado, uint8_t momento);
 void sendPista(uint8_t lineas);//funcion para dibujar lineas de pista
 void sendTope(void);//dibuja guiones como tope de pantalla
 
 uint8_t ctrl_lado = 0;//controla en que lado esta el auto
-uint8_t ctrl_menu = 1;
-uint8_t cambio_lado = 0;
-uint32_t dificultad = 0;
+uint8_t ctrl_menu = 1;//se pone a 0 para avanzar en los menus
+uint8_t cambio_lado = 0;//es 1 si el auto tiene que cambiar de carril
+uint32_t dificultadRC = 0;//obtiene un valor segun lo medido en el potenciometro
+uint8_t selector = 0;//segun lo medido en el potenciometro se elige un juego
+uint8_t cont_obst = 0;//contador para saber donde esta el obstaculo
+uint8_t autos = 0;//varaible para saber si se dibujo un auto o no
 
-uint8_t menu_screen1[] =
+
+//hacer un archivo con estos strings
+//para hacer un include aca y optimizar el codigo
+uint8_t menu_screen1[] = "1\n\r";
+
+uint8_t menu_screen2[] = "2\n\r";
+
+uint8_t menu_screen3[] = "3\n\r";
+
+uint8_t menu_screen4[] = "4\n\r";
+
+uint8_t menuRC_screen1[] =
 		"-\tBienvenido a\t\t-\n\r"
 		"-\tRacing Car\t\t-\n\r"
 		"-\t\t\t\t-\n\r"
@@ -68,7 +87,7 @@ uint8_t menu_screen1[] =
 		"-\t\t\t\t-\n\r"
 		"-\tPresione para continuar\t-\n\r";
 
-uint8_t menu_screen2[] =
+uint8_t menuRC_screen2[] =
 		"-\tBienvenido a\t\t-\n\r"
 		"-\tRacing Car\t\t-\n\r"
 		"-\t\t\t\t-\n\r"
@@ -85,7 +104,7 @@ uint8_t menu_screen2[] =
 		"-\t\t\t\t-\n\r"
 		"-\tPresione para continuar\t-\n\r";
 
-uint8_t menu_screen3[] =
+uint8_t menuRC_screen3[] =
 		"-\tBienvenido a\t\t-\n\r"
 		"-\tRacing Car\t\t-\n\r"
 		"-\t\t\t\t-\n\r"
@@ -102,7 +121,7 @@ uint8_t menu_screen3[] =
 		"-\t\t\t\t-\n\r"
 		"-\tPresione para continuar\t-\n\r";
 
-uint8_t menu_screen4[] =
+uint8_t menuRC_screen4[] =
 		"-\tBienvenido a\t\t-\n\r"
 		"-\tRacing Car\t\t-\n\r"
 		"-\t\t\t\t-\n\r"
@@ -119,6 +138,23 @@ uint8_t menu_screen4[] =
 		"-\t\t\t\t-\n\r"
 		"-\tPresione para continuar\t-\n\r";
 
+uint8_t lose_screen[] =
+		"-\t    PERDISTE!\t\t-\n\r"
+		"-\t\t\t\t-\n\r"
+		"-\t   ..-^~~~^-..\t\t-\n\r"
+		"-\t .~           ~.\t-\n\r"
+		"-\t(;:           :;)\t-\n\r"
+		"-\t (:           :)\t-\n\r"
+		"-\t   ':._   _.:'\t\t-\n\r"
+		"-\t       | |\t\t-\n\r"
+		"-\t     (=====)\t\t-\n\r"
+		"-\t       | |\t\t-\n\r"
+		"-\t       | |\t\t-\n\r"
+		"-\t       | |\t\t-\n\r"
+		"-\t    ((/   \))\t\t-\n\r"
+		"-\t\t\t\t-\n\r"
+		"-\tSigue intentando\t-\n\r";
+
 uint8_t tope[37] = "---------------------------------\n\r";
 
 uint8_t auto_izq[] =
@@ -132,12 +168,44 @@ uint8_t auto_der[] =
 		"-\t\t|     o----o\t-\n\r"
 		"-\t\t \t--\t-\n\r"
 		"-\t\t|     o----o\t-\n\r";
+//autos con obstaculos en carril opuesto
+uint8_t auto_izq2[] =
+		"-\t--\t \t00\t-\n\r"
+		"-     o----o\t|\t00\t-\n\r"
+		"-\t--\t \t\t-\n\r"
+		"-     o----o\t|\t\t-\n\r";
+
+uint8_t auto_der2[] =
+		"-\t00\t \t--\t-\n\r"
+		"-\t00\t|     o----o\t-\n\r"
+		"-\t\t \t--\t-\n\r"
+		"-\t\t|     o----o\t-\n\r";
+
+uint8_t auto_izq3[] =
+		"-\t--\t \t\t-\n\r"
+		"-     o----o\t|\t\t-\n\r"
+		"-\t--\t \t00\t-\n\r"
+		"-     o----o\t|\t00\t-\n\r";
+
+uint8_t auto_der3[] =
+		"-\t\t \t--\t-\n\r"
+		"-\t\t|     o----o\t-\n\r"
+		"-\t00\t \t--\t-\n\r"
+		"-\t00\t|     o----o\t-\n\r";
 
 uint8_t auto_cen[]=
 		"-\t\t--\t\t-\n\r"
 		"-\t      o----o\t\t-\n\r"
 		"-\t\t--\t\t-\n\r"
 		"-\t      o----o\t\t-\n\r";
+
+uint8_t obst_izq[] =
+		"-\t00\t \t\t-\n\r"
+		"-\t00\t|\t\t-\n\r";
+
+uint8_t obst_der[] =
+		"-\t\t \t00\t-\n\r"
+		"-\t\t|\t00\t-\n\r";
 
 uint8_t linea[15] = "-\t\t|\t\t-\n\r";
 
@@ -152,7 +220,21 @@ int main(void) {
 	confGPIO();
 	confUART();
 
-	menu();
+	menuPpal();
+
+//"arranca" el menu del juego elegido
+	if(selector==0){
+		menuRC();
+	}
+	else if(selector==1){
+
+	}
+	else if(selector==2){
+
+	}
+	else{
+
+	}
 
     while(1) {
 
@@ -205,8 +287,8 @@ void confPIN(void){
 }
 
 void confGPIO(void){
-
 	//configuro interrupciones por gpio en p2.0-2
+
 	LPC_GPIOINT->IO2IntEnR |= Pin0;
 	LPC_GPIOINT->IO2IntEnR |= Pin1;
 	LPC_GPIOINT->IO2IntEnR |= Pin2;
@@ -243,12 +325,12 @@ void confTIMER(uint32_t ticks){
 	TIM_TIMERCFG_Type TIMERCfg;
 	TIM_MATCHCFG_Type MATCHCfg;
 
-	//Configuro el prescaler del timer para que el TC aumente cada 1 mS
+	//Configuro el prescaler del timer segun la dificultad que elija
 	TIMERCfg.PrescaleOption = TIM_PRESCALE_TICKVAL;
-	TIMERCfg.PrescaleValue = ticks;//25000/25MHz
+	TIMERCfg.PrescaleValue = ticks;//ticks/25MHz
 
 	//Configuro el Match0 para que cuando TC cuente 1000 veces interrumpa
-	//y resetee. Así puedo actualizar la pantalla cada 1 S
+	//y resetee. Así puedo actualizar la pantalla cada 0.8-0.6-0.4-0.2 seg
 	MATCHCfg.ExtMatchOutputType = TIM_EXTMATCH_NOTHING;
 	MATCHCfg.IntOnMatch = ENABLE;
 	MATCHCfg.ResetOnMatch = ENABLE;
@@ -266,6 +348,7 @@ void confTIMER(uint32_t ticks){
 }
 
 void confADC(void){
+	//configuro el ADC modo burst para luego elegir juego y dificultad
 
 	LPC_SC->PCONP |= (1<<12);
 	LPC_ADC->ADCR |= (1<<21);
@@ -280,7 +363,7 @@ void confADC(void){
 }
 
 void ADCOff(void){
-
+	//desactivo el ADC cuando no se usa mas
 	NVIC_DisableIRQ(ADC_IRQn);
 	LPC_ADC->ADCR &= ~(1<<16);//no burst
 	LPC_ADC->ADCR &= ~(1<<21);
@@ -295,42 +378,92 @@ void TIMER0_IRQHandler(void){
 	UART_SendByte(LPC_UART0,12);//caracter para nueva pagina
 
 	sendTope();
+//dependiendo la cantidad de frames que pasaron dibuja el obstaculo en donde corresponde
+	if(cont_obst==0){
+		sendObstaculo(0,0);
+		sendPista(4);
+	}
+	else if(cont_obst==1){
+		sendPista(1);
+		sendObstaculo(0,0);
+		sendPista(3);
+	}
+	else if(cont_obst==2){
+		sendPista(2);
+		sendObstaculo(0,0);
+		sendPista(2);
+	}
+	else if(cont_obst==3){
+		sendPista(3);
+		sendObstaculo(0,0);
+		sendPista(1);
+	}
+	else if(cont_obst==4){
+		sendPista(4);
+		sendObstaculo(0,0);
+	}
+//si el obstaculo esta de mismo lado que auto, game over
+//sino dibuja obstaculo y auto en carriles opuestos
+	else if(cont_obst==5 || cont_obst==6){
+		if(ctrl_lado==0){
+			UART_SendByte(LPC_UART0,12);
+			UART_Send(LPC_UART0,lose_screen,sizeof(lose_screen),BLOCKING);
+			while(1);
+		}
+		else{
+			sendPista(5);
+			if(cont_obst==5){
+				sendAuto_Obst(1,0);
+			}
+			else{
+				sendAuto_Obst(1,1);
+			}
+			autos++;
+		}
+	}
+	cont_obst++;
+	if(cont_obst==7){//ya se paso el obstaculo y se "genera" otro
+		cont_obst = 0;
+	}
 
-	sendPista(5);
-
-	sendAuto(ctrl_lado);
+	if(autos==0){//si no hubo que dibujar obstaculo al lado de auto viene aca
+		//pantalla de transicion cuando se cambia de un carril al otro(auto en el centro)
+		if(cambio_lado){
+			sendAuto(1);
+			cambio_lado = 0;
+		}
+		//si no hay cambio de carril se dibuja el auto en el correspondiente
+		else{
+			sendAuto(ctrl_lado);
+		}
+	}
 
 	sendTope();
+
+	autos = 0;
 
 	TIM_ClearIntPending(LPC_TIM0, TIM_MR0_INT);
 	return;
 }
 
 void EINT3_IRQHandler(void){
-
-	//boton "start"
+	//boton "start", para avanzar de menu
 	if(LPC_GPIOINT->IO2IntStatR == 1){
-
-			ctrl_menu = 0;
-
-		}
-
+		ctrl_menu = 0;
+	}
 	//dirige el movimiento del auto entre los carriles
-
-	if(LPC_GPIOINT->IO2IntStatR == 2){
-
-		ctrl_lado++;
-
+	else if(LPC_GPIOINT->IO2IntStatR == 2){
+		if(ctrl_lado==0){//el auto va de un carril al otro y genera la transicion del medio
+			cambio_lado = 1;
+		}
+		ctrl_lado = 2;
 	}
-
-	if(LPC_GPIOINT->IO2IntStatR == 4){
-
-		ctrl_lado--;
-
+	else if(LPC_GPIOINT->IO2IntStatR == 4){
+		if(ctrl_lado==2){
+			cambio_lado = 1;
+		}
+		ctrl_lado = 0;
 	}
-
-	if(ctrl_lado==255) ctrl_lado = 0;
-	if(ctrl_lado>2) ctrl_lado = 2;
 
 	GPIO_ClearInt(PUERTO2, Pin0);
 	GPIO_ClearInt(PUERTO2, Pin1);
@@ -340,56 +473,77 @@ void EINT3_IRQHandler(void){
 }
 
 void ADC_IRQHandler(){
+	//segun valor medido en el potenciometro asigna valores a selector y dificultadRC
 	uint32_t adc0_value = 0;
 
 	adc0_value = 0xFFF&((LPC_ADC->ADDR0)>>4);
 
 	if(adc0_value<560){
-		dificultad = 20000;
+		dificultadRC = 20000;
+		selector = 0;
 	}
 	else if((adc0_value>=560) && (adc0_value<2048)){
-		dificultad = 15000;
+		dificultadRC = 15000;
+		selector = 1;
 	}
 	else if((adc0_value>=2048) && (adc0_value<3536)){
-		dificultad = 10000;
+		dificultadRC = 10000;
+		selector = 2;
 	}
 	else{
-		dificultad = 5000;
+		dificultadRC = 5000;
+		selector = 3;
 	}
 
 	return;
 }
 
-void menu(void){
-
+void menuPpal(void){
+	//es el menu principal, elijo que juego quiero jugar
 	confADC();
 
 	while(ctrl_menu){
-
-		sendMenu(dificultad);
-
+		sendMenuPpal(selector);
 	}
 
-	confTIMER(dificultad);
+	ctrl_menu = 1;
 
 	ADCOff();
 
 	return;
 }
 
-void sendMenu(uint32_t dificultad){
+void menuRC(void){
+	//menu del juego de autos, elijo la dificultad
+	confADC();
+
+	while(ctrl_menu){
+		sendMenuRC(dificultadRC);
+	}
+
+	ctrl_menu = 1;
+
+	confTIMER(dificultadRC);
+
+	ADCOff();
+
+	return;
+}
+
+void sendMenuPpal(uint8_t juego){
+	//dibuja el menu principal... segun el selector manejada por adc destaca que juego se elegira
 
 	UART_SendByte(LPC_UART0,12);//caracter para nueva pagina
 
 	sendTope();
 
-	if(dificultad == 5000){
+	if(selector == 0){
 		UART_Send(LPC_UART0,menu_screen1,sizeof(menu_screen1),BLOCKING);
 	}
-	else if(dificultad == 10000){
+	else if(selector == 1){
 		UART_Send(LPC_UART0,menu_screen2,sizeof(menu_screen2),BLOCKING);
 	}
-	else if(dificultad == 15000){
+	else if(selector == 2){
 		UART_Send(LPC_UART0,menu_screen3,sizeof(menu_screen3),BLOCKING);
 	}
 	else{
@@ -403,8 +557,34 @@ void sendMenu(uint32_t dificultad){
 	return;
 }
 
-void sendAuto(uint8_t lado){
+void sendMenuRC(uint32_t dificultad){
+	//dibuja el menu juego autos... segun variable dificultad manejada por adc destaca que dificultad
+	UART_SendByte(LPC_UART0,12);//caracter para nueva pagina
 
+	sendTope();
+
+	if(dificultad == 5000){
+		UART_Send(LPC_UART0,menuRC_screen1,sizeof(menuRC_screen1),BLOCKING);
+	}
+	else if(dificultad == 10000){
+		UART_Send(LPC_UART0,menuRC_screen2,sizeof(menuRC_screen2),BLOCKING);
+	}
+	else if(dificultad == 15000){
+		UART_Send(LPC_UART0,menuRC_screen3,sizeof(menuRC_screen3),BLOCKING);
+	}
+	else{
+		UART_Send(LPC_UART0,menuRC_screen4,sizeof(menuRC_screen4),BLOCKING);
+	}
+
+	sendTope();
+
+	for(uint32_t i=0; i<400000; i++);
+
+	return;
+}
+
+void sendAuto(uint8_t lado){
+	//dibuja el auto en el carril correspondiente
 	if(lado==0){
 		UART_Send(LPC_UART0,auto_izq,sizeof(auto_izq),BLOCKING);
 	}
@@ -419,17 +599,47 @@ void sendAuto(uint8_t lado){
 }
 
 void sendTope(void){
-
+	//dibuja tope sup e inf de pantalla
 	UART_Send(LPC_UART0,tope,sizeof(tope),BLOCKING);
 
 	return;
 }
 
 void sendPista(uint8_t lineas){
-
+	//dibuja 1 linea de carretera con raya al medio y otra sin
 	for(uint8_t i = 0; i<lineas; i++){
-		UART_Send(LPC_UART0,linea,sizeof(linea),BLOCKING);
 		UART_Send(LPC_UART0,no_linea,sizeof(no_linea),BLOCKING);
+		UART_Send(LPC_UART0,linea,sizeof(linea),BLOCKING);
+	}
+
+	return;
+}
+
+void sendObstaculo(uint8_t tipo, uint8_t lado){
+	//dibuja obstaculo en el carril correspondiente
+	if(lado==0){
+		UART_Send(LPC_UART0,obst_izq,sizeof(obst_izq),BLOCKING);
+	}
+	else{
+		UART_Send(LPC_UART0,obst_der,sizeof(obst_der),BLOCKING);
+	}
+
+	return;
+}
+
+void sendAuto_Obst(uint8_t lado, uint8_t momento){
+//dibuja caso de auto y obstaculo en misma altura
+	if(lado==0 && momento==0){
+		UART_Send(LPC_UART0,auto_izq2,sizeof(auto_izq2),BLOCKING);
+	}
+	else if(lado==1 && momento==0){
+		UART_Send(LPC_UART0,auto_der2,sizeof(auto_der2),BLOCKING);
+	}
+	else if(lado==0 && momento==1){
+		UART_Send(LPC_UART0,auto_izq3,sizeof(auto_izq3),BLOCKING);
+	}
+	else{
+		UART_Send(LPC_UART0,auto_der3,sizeof(auto_der3),BLOCKING);
 	}
 
 	return;
