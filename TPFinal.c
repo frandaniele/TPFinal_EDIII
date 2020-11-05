@@ -1,4 +1,3 @@
-
 /*
 ===============================================================================
  Name        : TPFinal.c
@@ -19,37 +18,9 @@
 #include "lpc17xx_timer.h"
 #include "lpc17xx_pinsel.h"
 #include "lpc17xx_adc.h"
-
-#define PUERTO0 0
-#define PUERTO2 2
-#define PinTx (1<<2)
-#define PinRx (1<<3)
-#define Pin0 (1<<0)
-#define Pin1 (1<<1)
-#define Pin2 (1<<2)
-#define OUTPUT 1
-#define INPUT 0
-#define Match0 0
-#define REdge 0
-
-void confPIN(void);
-void confGPIO(void);
-void confUART(void);
-void confTIMER(uint32_t ticks);
-void confADC(void);
-void ADCOff(void);
-
-void menuPpal(void);
-void menuRC(void);
-//funcion rx para obtener nombre de usuario?
-
-void sendMenuPpal(uint8_t juego);
-void sendMenuRC(uint32_t dificultad);
-void sendAuto(uint8_t lado);//funcion para dibujar el auto
-void sendObstaculo(uint8_t tipo, uint8_t lado);//funcion para dibujar obstaculo
-void sendAuto_Obst(uint8_t lado, uint8_t momento);
-void sendPista(uint8_t lineas);//funcion para dibujar lineas de pista
-void sendTope(void);//dibuja guiones como tope de pantalla
+#include "lib_ppal.h"
+#include "lib_rc.h"
+#include "lib_pong.h"
 
 uint8_t ctrl_lado = 0;//controla en que lado esta el auto
 uint8_t ctrl_menu = 1;//se pone a 0 para avanzar en los menus
@@ -59,158 +30,7 @@ uint8_t selector = 0;//segun lo medido en el potenciometro se elige un juego
 uint8_t cont_obst = 0;//contador para saber donde esta el obstaculo
 uint8_t autos = 0;//varaible para saber si se dibujo un auto o no
 
-
-//hacer un archivo con estos strings
-//para hacer un include aca y optimizar el codigo
-uint8_t menu_screen1[] = "1\n\r";
-
-uint8_t menu_screen2[] = "2\n\r";
-
-uint8_t menu_screen3[] = "3\n\r";
-
-uint8_t menu_screen4[] = "4\n\r";
-
-uint8_t menuRC_screen1[] =
-		"-\tBienvenido a\t\t-\n\r"
-		"-\tRacing Car\t\t-\n\r"
-		"-\t\t\t\t-\n\r"
-		"-\tSeleccione la\t\t-\n\r"
-		"-\tdificultad:\t\t-\n\r"
-		"-\t\t\t\t-\n\r"
-		"-\tFácil\t\t\t-\n\r"
-		"-\t\t\t\t-\n\r"
-		"-\tNormal\t\t\t-\n\r"
-		"-\t\t\t\t-\n\r"
-		"-\tDifícil\t\t\t-\n\r"
-		"-\t\t\t\t-\n\r"
-		"-\t* Muy difícil\t\t-\n\r"
-		"-\t\t\t\t-\n\r"
-		"-\tPresione para continuar\t-\n\r";
-
-uint8_t menuRC_screen2[] =
-		"-\tBienvenido a\t\t-\n\r"
-		"-\tRacing Car\t\t-\n\r"
-		"-\t\t\t\t-\n\r"
-		"-\tSeleccione la\t\t-\n\r"
-		"-\tdificultad:\t\t-\n\r"
-		"-\t\t\t\t-\n\r"
-		"-\tFácil\t\t\t-\n\r"
-		"-\t\t\t\t-\n\r"
-		"-\tNormal\t\t\t-\n\r"
-		"-\t\t\t\t-\n\r"
-		"-\t* Difícil\t\t-\n\r"
-		"-\t\t\t\t-\n\r"
-		"-\tMuy difícil\t\t-\n\r"
-		"-\t\t\t\t-\n\r"
-		"-\tPresione para continuar\t-\n\r";
-
-uint8_t menuRC_screen3[] =
-		"-\tBienvenido a\t\t-\n\r"
-		"-\tRacing Car\t\t-\n\r"
-		"-\t\t\t\t-\n\r"
-		"-\tSeleccione la\t\t-\n\r"
-		"-\tdificultad:\t\t-\n\r"
-		"-\t\t\t\t-\n\r"
-		"-\tFácil\t\t\t-\n\r"
-		"-\t\t\t\t-\n\r"
-		"-\t* Normal\t\t-\n\r"
-		"-\t\t\t\t-\n\r"
-		"-\tDifícil\t\t\t-\n\r"
-		"-\t\t\t\t-\n\r"
-		"-\tMuy difícil\t\t-\n\r"
-		"-\t\t\t\t-\n\r"
-		"-\tPresione para continuar\t-\n\r";
-
-uint8_t menuRC_screen4[] =
-		"-\tBienvenido a\t\t-\n\r"
-		"-\tRacing Car\t\t-\n\r"
-		"-\t\t\t\t-\n\r"
-		"-\tSeleccione la\t\t-\n\r"
-		"-\tdificultad:\t\t-\n\r"
-		"-\t\t\t\t-\n\r"
-		"-\t* Fácil\t\t\t-\n\r"
-		"-\t\t\t\t-\n\r"
-		"-\tNormal\t\t\t-\n\r"
-		"-\t\t\t\t-\n\r"
-		"-\tDifícil\t\t\t-\n\r"
-		"-\t\t\t\t-\n\r"
-		"-\tMuy difícil\t\t-\n\r"
-		"-\t\t\t\t-\n\r"
-		"-\tPresione para continuar\t-\n\r";
-
-uint8_t lose_screen[] =
-		"-\t    PERDISTE!\t\t-\n\r"
-		"-\t\t\t\t-\n\r"
-		"-\t   ..-^~~~^-..\t\t-\n\r"
-		"-\t .~           ~.\t-\n\r"
-		"-\t(;:           :;)\t-\n\r"
-		"-\t (:           :)\t-\n\r"
-		"-\t   ':._   _.:'\t\t-\n\r"
-		"-\t       | |\t\t-\n\r"
-		"-\t     (=====)\t\t-\n\r"
-		"-\t       | |\t\t-\n\r"
-		"-\t       | |\t\t-\n\r"
-		"-\t       | |\t\t-\n\r"
-		"-\t    ((/   \))\t\t-\n\r"
-		"-\t\t\t\t-\n\r"
-		"-\tSigue intentando\t-\n\r";
-
-uint8_t tope[37] = "---------------------------------\n\r";
-
-uint8_t auto_izq[] =
-		"-\t--\t \t\t-\n\r"
-		"-     o----o\t|\t\t-\n\r"
-		"-\t--\t \t\t-\n\r"
-		"-     o----o\t|\t\t-\n\r";
-
-uint8_t auto_der[] =
-		"-\t\t \t--\t-\n\r"
-		"-\t\t|     o----o\t-\n\r"
-		"-\t\t \t--\t-\n\r"
-		"-\t\t|     o----o\t-\n\r";
-//autos con obstaculos en carril opuesto
-uint8_t auto_izq2[] =
-		"-\t--\t \t00\t-\n\r"
-		"-     o----o\t|\t00\t-\n\r"
-		"-\t--\t \t\t-\n\r"
-		"-     o----o\t|\t\t-\n\r";
-
-uint8_t auto_der2[] =
-		"-\t00\t \t--\t-\n\r"
-		"-\t00\t|     o----o\t-\n\r"
-		"-\t\t \t--\t-\n\r"
-		"-\t\t|     o----o\t-\n\r";
-
-uint8_t auto_izq3[] =
-		"-\t--\t \t\t-\n\r"
-		"-     o----o\t|\t\t-\n\r"
-		"-\t--\t \t00\t-\n\r"
-		"-     o----o\t|\t00\t-\n\r";
-
-uint8_t auto_der3[] =
-		"-\t\t \t--\t-\n\r"
-		"-\t\t|     o----o\t-\n\r"
-		"-\t00\t \t--\t-\n\r"
-		"-\t00\t|     o----o\t-\n\r";
-
-uint8_t auto_cen[]=
-		"-\t\t--\t\t-\n\r"
-		"-\t      o----o\t\t-\n\r"
-		"-\t\t--\t\t-\n\r"
-		"-\t      o----o\t\t-\n\r";
-
-uint8_t obst_izq[] =
-		"-\t00\t \t\t-\n\r"
-		"-\t00\t|\t\t-\n\r";
-
-uint8_t obst_der[] =
-		"-\t\t \t00\t-\n\r"
-		"-\t\t|\t00\t-\n\r";
-
-uint8_t linea[15] = "-\t\t|\t\t-\n\r";
-
-uint8_t no_linea[16] = "-\t\t \t\t-\n\r";
-
+uint8_t direccion_obst[] = {0,0,1,0,1,1,0,1,0,0,0,1,1,0,1,1,0,0,0,1,1,1,0,0,1,0,1,0};
 
 int main(void) {
 
@@ -227,7 +47,7 @@ int main(void) {
 		menuRC();
 	}
 	else if(selector==1){
-
+		menuPong();
 	}
 	else if(selector==2){
 
@@ -374,53 +194,68 @@ void ADCOff(void){
 
 void TIMER0_IRQHandler(void){
 	//se encarga de actualizar la pantalla
+	static uint8_t lado_obst = 0;
+	static uint8_t i = 0;
+	static uint8_t cont = 0;
+
+	if(cont==0){
+		lado_obst = direccion_obst[i];
+
+		i++;
+		if(i==sizeof(direccion_obst)-1){
+			i=0;
+		}
+	}
+
+	cont++;
+	if(cont==7){cont=0;}
 
 	UART_SendByte(LPC_UART0,12);//caracter para nueva pagina
 
 	sendTope();
 //dependiendo la cantidad de frames que pasaron dibuja el obstaculo en donde corresponde
 	if(cont_obst==0){
-		sendObstaculo(0,0);
+		sendObstaculo(lado_obst);
 		sendPista(4);
 	}
 	else if(cont_obst==1){
 		sendPista(1);
-		sendObstaculo(0,0);
+		sendObstaculo(lado_obst);
 		sendPista(3);
 	}
 	else if(cont_obst==2){
 		sendPista(2);
-		sendObstaculo(0,0);
+		sendObstaculo(lado_obst);
 		sendPista(2);
 	}
 	else if(cont_obst==3){
 		sendPista(3);
-		sendObstaculo(0,0);
+		sendObstaculo(lado_obst);
 		sendPista(1);
 	}
 	else if(cont_obst==4){
 		sendPista(4);
-		sendObstaculo(0,0);
+		sendObstaculo(lado_obst);
 	}
 //si el obstaculo esta de mismo lado que auto, game over
 //sino dibuja obstaculo y auto en carriles opuestos
 	else if(cont_obst==5 || cont_obst==6){
-		if(ctrl_lado==0){
-			UART_SendByte(LPC_UART0,12);
-			UART_Send(LPC_UART0,lose_screen,sizeof(lose_screen),BLOCKING);
+		if(ctrl_lado==lado_obst){
+			sendLost();
 			while(1);
 		}
 		else{
 			sendPista(5);
 			if(cont_obst==5){
-				sendAuto_Obst(1,0);
+				sendAuto_Obst(lado_obst,0);
 			}
 			else{
-				sendAuto_Obst(1,1);
+				sendAuto_Obst(lado_obst,1);
 			}
 			autos++;
 		}
 	}
+
 	cont_obst++;
 	if(cont_obst==7){//ya se paso el obstaculo y se "genera" otro
 		cont_obst = 0;
@@ -456,7 +291,7 @@ void EINT3_IRQHandler(void){
 		if(ctrl_lado==0){//el auto va de un carril al otro y genera la transicion del medio
 			cambio_lado = 1;
 		}
-		ctrl_lado = 2;
+		ctrl_lado = 1;
 	}
 	else if(LPC_GPIOINT->IO2IntStatR == 4){
 		if(ctrl_lado==2){
@@ -479,19 +314,19 @@ void ADC_IRQHandler(){
 	adc0_value = 0xFFF&((LPC_ADC->ADDR0)>>4);
 
 	if(adc0_value<560){
-		dificultadRC = 20000;
+		dificultadRC = 12000;
 		selector = 0;
 	}
 	else if((adc0_value>=560) && (adc0_value<2048)){
-		dificultadRC = 15000;
+		dificultadRC = 8000;
 		selector = 1;
 	}
 	else if((adc0_value>=2048) && (adc0_value<3536)){
-		dificultadRC = 10000;
+		dificultadRC = 6000;
 		selector = 2;
 	}
 	else{
-		dificultadRC = 5000;
+		dificultadRC = 4000;
 		selector = 3;
 	}
 
@@ -563,13 +398,13 @@ void sendMenuRC(uint32_t dificultad){
 
 	sendTope();
 
-	if(dificultad == 5000){
+	if(dificultad == 4000){
 		UART_Send(LPC_UART0,menuRC_screen1,sizeof(menuRC_screen1),BLOCKING);
 	}
-	else if(dificultad == 10000){
+	else if(dificultad == 6000){
 		UART_Send(LPC_UART0,menuRC_screen2,sizeof(menuRC_screen2),BLOCKING);
 	}
-	else if(dificultad == 15000){
+	else if(dificultad == 8000){
 		UART_Send(LPC_UART0,menuRC_screen3,sizeof(menuRC_screen3),BLOCKING);
 	}
 	else{
@@ -589,10 +424,10 @@ void sendAuto(uint8_t lado){
 		UART_Send(LPC_UART0,auto_izq,sizeof(auto_izq),BLOCKING);
 	}
 	else if(lado==1){
-		UART_Send(LPC_UART0,auto_cen,sizeof(auto_cen),BLOCKING);
+		UART_Send(LPC_UART0,auto_der,sizeof(auto_der),BLOCKING);
 	}
 	else{
-		UART_Send(LPC_UART0,auto_der,sizeof(auto_der),BLOCKING);
+		UART_Send(LPC_UART0,auto_cen,sizeof(auto_cen),BLOCKING);
 	}
 
 	return;
@@ -615,7 +450,7 @@ void sendPista(uint8_t lineas){
 	return;
 }
 
-void sendObstaculo(uint8_t tipo, uint8_t lado){
+void sendObstaculo(uint8_t lado){
 	//dibuja obstaculo en el carril correspondiente
 	if(lado==0){
 		UART_Send(LPC_UART0,obst_izq,sizeof(obst_izq),BLOCKING);
@@ -629,18 +464,67 @@ void sendObstaculo(uint8_t tipo, uint8_t lado){
 
 void sendAuto_Obst(uint8_t lado, uint8_t momento){
 //dibuja caso de auto y obstaculo en misma altura
-	if(lado==0 && momento==0){
+	if(lado==1 && momento==0){
 		UART_Send(LPC_UART0,auto_izq2,sizeof(auto_izq2),BLOCKING);
 	}
-	else if(lado==1 && momento==0){
+	else if(lado==0 && momento==0){
 		UART_Send(LPC_UART0,auto_der2,sizeof(auto_der2),BLOCKING);
 	}
-	else if(lado==0 && momento==1){
+	else if(lado==1 && momento==1){
 		UART_Send(LPC_UART0,auto_izq3,sizeof(auto_izq3),BLOCKING);
 	}
 	else{
 		UART_Send(LPC_UART0,auto_der3,sizeof(auto_der3),BLOCKING);
 	}
+
+	return;
+}
+
+void sendLost(void){
+
+	UART_SendByte(LPC_UART0,12);
+	sendTope();
+	UART_Send(LPC_UART0,lose_screen,sizeof(lose_screen),BLOCKING);
+	sendTope();
+
+	return;
+}
+
+void menuPong(void){
+
+	while(ctrl_menu){
+		sendMenuPong();
+	}
+
+	ctrl_menu = 1;
+
+	return;
+}
+
+void sendMenuPong(void){
+
+	UART_SendByte(LPC_UART0,12);//caracter para nueva pagina
+	sendTope();
+
+	UART_Send(LPC_UART0,menuPong_screen1,sizeof(menuPong_screen1),BLOCKING);
+
+	sendTope();
+
+	for(uint32_t i=0; i<400000; i++);
+
+	return;
+}
+
+void sendPelota(void){
+
+
+
+	return;
+}
+
+void sendPaleta(void){
+
+
 
 	return;
 }
