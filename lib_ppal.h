@@ -15,6 +15,8 @@
 #define Pin0 (1<<0)
 #define Pin1 (1<<1)
 #define Pin2 (1<<2)
+#define Pin3 (1<<3)
+#define Pin4 (1<<4)
 #define OUTPUT 1
 #define INPUT 0
 #define Match0 0
@@ -23,7 +25,8 @@
 void confPIN(void);
 void confGPIO(void);
 void confUART(void);
-void confTIMER(uint32_t ticks);
+void confTIMER0(uint32_t ticks);
+void confTIMER1(uint32_t ticks);
 void confADC(void);
 void ADCOff(void);
 

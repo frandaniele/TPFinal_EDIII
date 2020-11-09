@@ -27,8 +27,9 @@ uint8_t ctrl_menu = 1;//se pone a 0 para avanzar en los menus
 uint8_t cambio_lado = 0;//es 1 si el auto tiene que cambiar de carril
 uint32_t dificultadRC = 0;//obtiene un valor segun lo medido en el potenciometro
 uint8_t selector = 0;//segun lo medido en el potenciometro se elige un juego
-uint8_t cont_obst = 0;//contador para saber donde esta el obstaculo
 uint8_t autos = 0;//varaible para saber si se dibujo un auto o no
+uint8_t paleta1 = 1;
+uint8_t paleta2 = 1;
 
 uint8_t direccion_obst[] = {0,0,1,0,1,1,0,1,0,0,0,1,1,0,1,1,0,0,0,1,1,1,0,0,1,0,1,0};
 
@@ -96,6 +97,16 @@ void confPIN(void){
 	GPIO_SetDir(PUERTO2,Pin2,INPUT);
 	PINSEL_ConfigPin(&PinCfg);
 
+	//Pin 3 puerto 2 para interrupcion por gpio
+	PinCfg.Pinnum = 3;
+	GPIO_SetDir(PUERTO2,Pin3,INPUT);
+	PINSEL_ConfigPin(&PinCfg);
+
+	//Pin 4 puerto 2 para interrupcion por gpio
+	PinCfg.Pinnum = 4;
+	GPIO_SetDir(PUERTO2,Pin4,INPUT);
+	PINSEL_ConfigPin(&PinCfg);
+
 	//p0.23 como AD0.0
 	PinCfg.Funcnum = PINSEL_FUNC_1;
 	PinCfg.Pinmode = PINSEL_PINMODE_TRISTATE;
@@ -112,10 +123,14 @@ void confGPIO(void){
 	LPC_GPIOINT->IO2IntEnR |= Pin0;
 	LPC_GPIOINT->IO2IntEnR |= Pin1;
 	LPC_GPIOINT->IO2IntEnR |= Pin2;
+	LPC_GPIOINT->IO2IntEnR |= Pin3;
+	LPC_GPIOINT->IO2IntEnR |= Pin4;
 
 	GPIO_ClearInt(PUERTO2, Pin0);
 	GPIO_ClearInt(PUERTO2, Pin1);
 	GPIO_ClearInt(PUERTO2, Pin2);
+	GPIO_ClearInt(PUERTO2, Pin3);
+	GPIO_ClearInt(PUERTO2, Pin4);
 
 	NVIC_EnableIRQ(EINT3_IRQn);
 
@@ -141,7 +156,7 @@ void confUART(void){
 	return;
 }
 
-void confTIMER(uint32_t ticks){
+void confTIMER0(uint32_t ticks){
 	TIM_TIMERCFG_Type TIMERCfg;
 	TIM_MATCHCFG_Type MATCHCfg;
 
@@ -163,6 +178,32 @@ void confTIMER(uint32_t ticks){
 	TIM_Cmd(LPC_TIM0, ENABLE);
 
 	NVIC_EnableIRQ(TIMER0_IRQn);
+
+	return;
+}
+
+void confTIMER1(uint32_t ticks){
+	TIM_TIMERCFG_Type TIMERCfg;
+	TIM_MATCHCFG_Type MATCHCfg;
+
+	//Configuro el prescaler del timer segun la dificultad que elija
+	TIMERCfg.PrescaleOption = TIM_PRESCALE_TICKVAL;
+	TIMERCfg.PrescaleValue = ticks;//ticks/25MHz
+
+	//Configuro el Match0 para que cuando TC cuente 1000 veces interrumpa
+	//y resetee. Así puedo actualizar la pantalla cada 0.8-0.6-0.4-0.2 seg
+	MATCHCfg.ExtMatchOutputType = TIM_EXTMATCH_NOTHING;
+	MATCHCfg.IntOnMatch = ENABLE;
+	MATCHCfg.ResetOnMatch = ENABLE;
+	MATCHCfg.StopOnMatch = DISABLE;
+	MATCHCfg.MatchChannel = Match0;
+	MATCHCfg.MatchValue = 1000;
+
+	TIM_Init(LPC_TIM1, TIM_TIMER_MODE, &TIMERCfg);
+	TIM_ConfigMatch(LPC_TIM1, &MATCHCfg);
+	TIM_Cmd(LPC_TIM1, ENABLE);
+
+	NVIC_EnableIRQ(TIMER1_IRQn);
 
 	return;
 }
@@ -194,59 +235,57 @@ void ADCOff(void){
 
 void TIMER0_IRQHandler(void){
 	//se encarga de actualizar la pantalla
+
 	static uint8_t lado_obst = 0;
 	static uint8_t i = 0;
-	static uint8_t cont = 0;
+	static uint8_t cont = 0;//controla en donde se dibuja el obstaculo
 
 	if(cont==0){
 		lado_obst = direccion_obst[i];
-
 		i++;
 		if(i==sizeof(direccion_obst)-1){
 			i=0;
 		}
 	}
 
-	cont++;
-	if(cont==7){cont=0;}
-
 	UART_SendByte(LPC_UART0,12);//caracter para nueva pagina
 
 	sendTope();
 //dependiendo la cantidad de frames que pasaron dibuja el obstaculo en donde corresponde
-	if(cont_obst==0){
+	if(cont==0){
 		sendObstaculo(lado_obst);
 		sendPista(4);
 	}
-	else if(cont_obst==1){
+	else if(cont==1){
 		sendPista(1);
 		sendObstaculo(lado_obst);
 		sendPista(3);
 	}
-	else if(cont_obst==2){
+	else if(cont==2){
 		sendPista(2);
 		sendObstaculo(lado_obst);
 		sendPista(2);
 	}
-	else if(cont_obst==3){
+	else if(cont==3){
 		sendPista(3);
 		sendObstaculo(lado_obst);
 		sendPista(1);
 	}
-	else if(cont_obst==4){
+	else if(cont==4){
 		sendPista(4);
 		sendObstaculo(lado_obst);
 	}
+
 //si el obstaculo esta de mismo lado que auto, game over
 //sino dibuja obstaculo y auto en carriles opuestos
-	else if(cont_obst==5 || cont_obst==6){
+	else if(cont==5 || cont==6){
 		if(ctrl_lado==lado_obst){
 			sendLost();
 			while(1);
 		}
 		else{
 			sendPista(5);
-			if(cont_obst==5){
+			if(cont==5){
 				sendAuto_Obst(lado_obst,0);
 			}
 			else{
@@ -256,10 +295,8 @@ void TIMER0_IRQHandler(void){
 		}
 	}
 
-	cont_obst++;
-	if(cont_obst==7){//ya se paso el obstaculo y se "genera" otro
-		cont_obst = 0;
-	}
+	cont++;
+	if(cont==7){cont=0;}//ya se paso el obstaculo y se "genera" otro
 
 	if(autos==0){//si no hubo que dibujar obstaculo al lado de auto viene aca
 		//pantalla de transicion cuando se cambia de un carril al otro(auto en el centro)
@@ -281,28 +318,132 @@ void TIMER0_IRQHandler(void){
 	return;
 }
 
+void TIMER1_IRQHandler(void){
+	static uint8_t x_pelota = 0;
+	static uint8_t cont = 0;
+	static uint8_t sentido = 0;
+
+	UART_SendByte(LPC_UART0,12);//caracter para nueva pagina
+
+	sendTope();
+
+	sendPaleta(paleta1);
+
+	/*lineas vacias y linea con pelota*/
+	if(cont==0){
+		sendPelota();
+		sendLineas(9);
+	}
+	else if(cont==1){
+		sendLineas(1);
+		sendPelota();
+		sendLineas(8);
+	}
+	else if(cont==2){
+		sendLineas(2);
+		sendPelota();
+		sendLineas(7);
+	}
+	else if(cont==3){
+		sendLineas(3);
+		sendPelota();
+		sendLineas(6);
+	}
+	else if(cont==4){
+		sendLineas(4);
+		sendPelota();
+		sendLineas(5);
+	}
+	else if(cont==5){
+		sendLineas(5);
+		sendPelota();
+		sendLineas(4);
+	}
+	else if(cont==6){
+		sendLineas(6);
+		sendPelota();
+		sendLineas(3);
+	}
+	else if(cont==7){
+		sendLineas(7);
+		sendPelota();
+		sendLineas(2);
+	}
+	else if(cont==8){
+		sendLineas(8);
+		sendPelota();
+		sendLineas(1);
+	}
+	else if(cont==9){
+		sendLineas(9);
+		sendPelota();
+	}
+
+	if(sentido==0){
+		cont++;
+		if(cont==10){sentido = 1;}
+	}
+	if(sentido==1){
+		cont--;
+		if(cont>=255){
+			sentido = 0;
+			cont = 0;
+		}
+	}
+
+	sendPaleta(paleta2);
+
+	sendTope();
+
+	TIM_ClearIntPending(LPC_TIM1, TIM_MR0_INT);
+	return;
+}
+
 void EINT3_IRQHandler(void){
+	for(uint32_t i = 0; i<10000;i++);//retardo antirrebote
+
 	//boton "start", para avanzar de menu
 	if(LPC_GPIOINT->IO2IntStatR == 1){
 		ctrl_menu = 0;
+		GPIO_ClearInt(PUERTO2, Pin0);
 	}
 	//dirige el movimiento del auto entre los carriles
 	else if(LPC_GPIOINT->IO2IntStatR == 2){
-		if(ctrl_lado==0){//el auto va de un carril al otro y genera la transicion del medio
-			cambio_lado = 1;
+		if(selector==0){
+			if(ctrl_lado==0){//el auto va de un carril al otro y genera la transicion del medio
+				cambio_lado = 1;
+			}
+			ctrl_lado = 1;
 		}
-		ctrl_lado = 1;
+		else if(selector==1){
+			paleta1++;
+			if(paleta1==3){paleta1 = 2;}
+		}
+		GPIO_ClearInt(PUERTO2, Pin1);
 	}
 	else if(LPC_GPIOINT->IO2IntStatR == 4){
-		if(ctrl_lado==2){
-			cambio_lado = 1;
+		if(selector==0){
+			if(ctrl_lado==2){
+				cambio_lado = 1;
+			}
+			ctrl_lado = 0;
 		}
-		ctrl_lado = 0;
+		else if(selector==1){
+			paleta1--;
+			if(paleta1>=255){paleta1 = 0;}
+		}
+		GPIO_ClearInt(PUERTO2, Pin2);
 	}
-
-	GPIO_ClearInt(PUERTO2, Pin0);
-	GPIO_ClearInt(PUERTO2, Pin1);
-	GPIO_ClearInt(PUERTO2, Pin2);
+	else if(LPC_GPIOINT->IO2IntStatR == 8){
+		paleta2++;
+		if(paleta2==3){paleta2 = 2;}
+		GPIO_ClearInt(PUERTO2, Pin3);
+	}
+	else if(LPC_GPIOINT->IO2IntStatR == 16){
+		paleta2--;
+		if(paleta2>=255){paleta2 = 0;}
+		GPIO_ClearInt(PUERTO2, Pin4);
+	}
 
 	return;
 }
@@ -358,7 +499,7 @@ void menuRC(void){
 
 	ctrl_menu = 1;
 
-	confTIMER(dificultadRC);
+	confTIMER0(dificultadRC);
 
 	ADCOff();
 
@@ -498,15 +639,31 @@ void menuPong(void){
 
 	ctrl_menu = 1;
 
+	confTIMER1(5000);
+
 	return;
 }
 
 void sendMenuPong(void){
+	static uint8_t frame = 0;
 
 	UART_SendByte(LPC_UART0,12);//caracter para nueva pagina
 	sendTope();
 
-	UART_Send(LPC_UART0,menuPong_screen1,sizeof(menuPong_screen1),BLOCKING);
+	if(frame==0){
+		UART_Send(LPC_UART0,menuPong_screen1,sizeof(menuPong_screen1),BLOCKING);
+	}
+	else if(frame==1){
+		UART_Send(LPC_UART0,menuPong_screen2,sizeof(menuPong_screen2),BLOCKING);
+	}
+	else if(frame==2){
+		UART_Send(LPC_UART0,menuPong_screen3,sizeof(menuPong_screen3),BLOCKING);
+	}
+	else if(frame==3){
+		UART_Send(LPC_UART0,menuPong_screen4,sizeof(menuPong_screen4),BLOCKING);
+	}
+	frame++;
+	if(frame==4){frame = 0;}
 
 	sendTope();
 
@@ -517,14 +674,31 @@ void sendMenuPong(void){
 
 void sendPelota(void){
 
-
+	UART_Send(LPC_UART0,pelota_15,sizeof(pelota_15),BLOCKING);
 
 	return;
 }
 
-void sendPaleta(void){
+void sendPaleta(uint8_t posicion){
 
+	if(posicion==0){
+		UART_Send(LPC_UART0,paleta_izq,sizeof(paleta_izq),BLOCKING);
+	}
+	else if(posicion==1){
+		UART_Send(LPC_UART0,paleta_cen,sizeof(paleta_cen),BLOCKING);
+	}
+	else{
+		UART_Send(LPC_UART0,paleta_der,sizeof(paleta_der),BLOCKING);
+	}
 
+	return;
+}
+
+void sendLineas(uint8_t num){
+
+	for(uint8_t i = 0; i<num; i++){
+		UART_Send(LPC_UART0,linea_vacia,sizeof(linea_vacia),BLOCKING);
+	}
 
 	return;
 }
