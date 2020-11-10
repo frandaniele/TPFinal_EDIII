@@ -27,6 +27,8 @@ uint8_t ctrl_menu = 1;//se pone a 0 para avanzar en los menus
 uint8_t cambio_lado = 0;//es 1 si el auto tiene que cambiar de carril
 uint32_t dificultadRC = 0;//obtiene un valor segun lo medido en el potenciometro
 uint8_t selector = 0;//segun lo medido en el potenciometro se elige un juego
+uint8_t juego = 0;//0:RC,1:Pong,2... variable que no cambia, al contrario de selector
+//se usa en eint3handler para los botones que se comparten entre juegos
 uint8_t autos = 0;//varaible para saber si se dibujo un auto o no
 uint8_t paleta1 = 1;
 uint8_t paleta2 = 1;
@@ -409,26 +411,26 @@ void EINT3_IRQHandler(void){
 	}
 	//dirige el movimiento del auto entre los carriles
 	else if(LPC_GPIOINT->IO2IntStatR == 2){
-		if(selector==0){
+		if(juego==0){
 			if(ctrl_lado==0){//el auto va de un carril al otro y genera la transicion del medio
 				cambio_lado = 1;
 			}
 			ctrl_lado = 1;
 		}
-		else if(selector==1){
+		else if(juego==1){
 			paleta1++;
 			if(paleta1==3){paleta1 = 2;}
 		}
 		GPIO_ClearInt(PUERTO2, Pin1);
 	}
 	else if(LPC_GPIOINT->IO2IntStatR == 4){
-		if(selector==0){
+		if(juego==0){
 			if(ctrl_lado==2){
 				cambio_lado = 1;
 			}
 			ctrl_lado = 0;
 		}
-		else if(selector==1){
+		else if(juego==1){
 			paleta1--;
 			if(paleta1>=255){paleta1 = 0;}
 		}
@@ -455,19 +457,19 @@ void ADC_IRQHandler(){
 	adc0_value = 0xFFF&((LPC_ADC->ADDR0)>>4);
 
 	if(adc0_value<560){
-		dificultadRC = 12000;
+		dificultadRC = 11000;
 		selector = 0;
 	}
 	else if((adc0_value>=560) && (adc0_value<2048)){
-		dificultadRC = 8000;
+		dificultadRC = 9000;
 		selector = 1;
 	}
 	else if((adc0_value>=2048) && (adc0_value<3536)){
-		dificultadRC = 6000;
+		dificultadRC = 7000;
 		selector = 2;
 	}
 	else{
-		dificultadRC = 4000;
+		dificultadRC = 4500;
 		selector = 3;
 	}
 
@@ -481,6 +483,8 @@ void menuPpal(void){
 	while(ctrl_menu){
 		sendMenuPpal(selector);
 	}
+
+	juego = selector;
 
 	ctrl_menu = 1;
 
@@ -502,6 +506,19 @@ void menuRC(void){
 	confTIMER0(dificultadRC);
 
 	ADCOff();
+
+	return;
+}
+
+void menuPong(void){
+
+	while(ctrl_menu){
+		sendMenuPong();
+	}
+
+	ctrl_menu = 1;
+
+	confTIMER1(5000);
 
 	return;
 }
@@ -533,172 +550,9 @@ void sendMenuPpal(uint8_t juego){
 	return;
 }
 
-void sendMenuRC(uint32_t dificultad){
-	//dibuja el menu juego autos... segun variable dificultad manejada por adc destaca que dificultad
-	UART_SendByte(LPC_UART0,12);//caracter para nueva pagina
-
-	sendTope();
-
-	if(dificultad == 4000){
-		UART_Send(LPC_UART0,menuRC_screen1,sizeof(menuRC_screen1),BLOCKING);
-	}
-	else if(dificultad == 6000){
-		UART_Send(LPC_UART0,menuRC_screen2,sizeof(menuRC_screen2),BLOCKING);
-	}
-	else if(dificultad == 8000){
-		UART_Send(LPC_UART0,menuRC_screen3,sizeof(menuRC_screen3),BLOCKING);
-	}
-	else{
-		UART_Send(LPC_UART0,menuRC_screen4,sizeof(menuRC_screen4),BLOCKING);
-	}
-
-	sendTope();
-
-	for(uint32_t i=0; i<400000; i++);
-
-	return;
-}
-
-void sendAuto(uint8_t lado){
-	//dibuja el auto en el carril correspondiente
-	if(lado==0){
-		UART_Send(LPC_UART0,auto_izq,sizeof(auto_izq),BLOCKING);
-	}
-	else if(lado==1){
-		UART_Send(LPC_UART0,auto_der,sizeof(auto_der),BLOCKING);
-	}
-	else{
-		UART_Send(LPC_UART0,auto_cen,sizeof(auto_cen),BLOCKING);
-	}
-
-	return;
-}
-
 void sendTope(void){
 	//dibuja tope sup e inf de pantalla
 	UART_Send(LPC_UART0,tope,sizeof(tope),BLOCKING);
-
-	return;
-}
-
-void sendPista(uint8_t lineas){
-	//dibuja 1 linea de carretera con raya al medio y otra sin
-	for(uint8_t i = 0; i<lineas; i++){
-		UART_Send(LPC_UART0,no_linea,sizeof(no_linea),BLOCKING);
-		UART_Send(LPC_UART0,linea,sizeof(linea),BLOCKING);
-	}
-
-	return;
-}
-
-void sendObstaculo(uint8_t lado){
-	//dibuja obstaculo en el carril correspondiente
-	if(lado==0){
-		UART_Send(LPC_UART0,obst_izq,sizeof(obst_izq),BLOCKING);
-	}
-	else{
-		UART_Send(LPC_UART0,obst_der,sizeof(obst_der),BLOCKING);
-	}
-
-	return;
-}
-
-void sendAuto_Obst(uint8_t lado, uint8_t momento){
-//dibuja caso de auto y obstaculo en misma altura
-	if(lado==1 && momento==0){
-		UART_Send(LPC_UART0,auto_izq2,sizeof(auto_izq2),BLOCKING);
-	}
-	else if(lado==0 && momento==0){
-		UART_Send(LPC_UART0,auto_der2,sizeof(auto_der2),BLOCKING);
-	}
-	else if(lado==1 && momento==1){
-		UART_Send(LPC_UART0,auto_izq3,sizeof(auto_izq3),BLOCKING);
-	}
-	else{
-		UART_Send(LPC_UART0,auto_der3,sizeof(auto_der3),BLOCKING);
-	}
-
-	return;
-}
-
-void sendLost(void){
-
-	UART_SendByte(LPC_UART0,12);
-	sendTope();
-	UART_Send(LPC_UART0,lose_screen,sizeof(lose_screen),BLOCKING);
-	sendTope();
-
-	return;
-}
-
-void menuPong(void){
-
-	while(ctrl_menu){
-		sendMenuPong();
-	}
-
-	ctrl_menu = 1;
-
-	confTIMER1(5000);
-
-	return;
-}
-
-void sendMenuPong(void){
-	static uint8_t frame = 0;
-
-	UART_SendByte(LPC_UART0,12);//caracter para nueva pagina
-	sendTope();
-
-	if(frame==0){
-		UART_Send(LPC_UART0,menuPong_screen1,sizeof(menuPong_screen1),BLOCKING);
-	}
-	else if(frame==1){
-		UART_Send(LPC_UART0,menuPong_screen2,sizeof(menuPong_screen2),BLOCKING);
-	}
-	else if(frame==2){
-		UART_Send(LPC_UART0,menuPong_screen3,sizeof(menuPong_screen3),BLOCKING);
-	}
-	else if(frame==3){
-		UART_Send(LPC_UART0,menuPong_screen4,sizeof(menuPong_screen4),BLOCKING);
-	}
-	frame++;
-	if(frame==4){frame = 0;}
-
-	sendTope();
-
-	for(uint32_t i=0; i<400000; i++);
-
-	return;
-}
-
-void sendPelota(void){
-
-	UART_Send(LPC_UART0,pelota_15,sizeof(pelota_15),BLOCKING);
-
-	return;
-}
-
-void sendPaleta(uint8_t posicion){
-
-	if(posicion==0){
-		UART_Send(LPC_UART0,paleta_izq,sizeof(paleta_izq),BLOCKING);
-	}
-	else if(posicion==1){
-		UART_Send(LPC_UART0,paleta_cen,sizeof(paleta_cen),BLOCKING);
-	}
-	else{
-		UART_Send(LPC_UART0,paleta_der,sizeof(paleta_der),BLOCKING);
-	}
-
-	return;
-}
-
-void sendLineas(uint8_t num){
-
-	for(uint8_t i = 0; i<num; i++){
-		UART_Send(LPC_UART0,linea_vacia,sizeof(linea_vacia),BLOCKING);
-	}
 
 	return;
 }
