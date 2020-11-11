@@ -24,16 +24,15 @@
 
 uint8_t ctrl_lado = 0;//controla en que lado esta el auto
 uint8_t ctrl_menu = 1;//se pone a 0 para avanzar en los menus
-uint8_t cambio_lado = 0;//es 1 si el auto tiene que cambiar de carril
 uint32_t dificultadRC = 0;//obtiene un valor segun lo medido en el potenciometro
 uint8_t selector = 0;//segun lo medido en el potenciometro se elige un juego
 uint8_t juego = 0;//0:RC,1:Pong,2... variable que no cambia, al contrario de selector
 //se usa en eint3handler para los botones que se comparten entre juegos
 uint8_t autos = 0;//varaible para saber si se dibujo un auto o no
-uint8_t paleta1 = 1;
+uint8_t paleta1 = 1;//controlan la posicion de las paletas
 uint8_t paleta2 = 1;
 
-uint8_t direccion_obst[] = {0,0,1,0,1,1,0,1,0,0,0,1,1,0,1,1,0,0,0,1,1,1,0,0,1,0,1,0};
+uint8_t direccion_obst[] = {0,0,1,0,1,1,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,1,1,0,0,0,1,1,0,0,1,0,0,1,0,1,1,0,1,0,0,0,1,1,0,1,1,0,0,0,1,1,1,0,0,1,0,1,0};
 
 int main(void) {
 
@@ -46,10 +45,12 @@ int main(void) {
 	menuPpal();
 
 //"arranca" el menu del juego elegido
-	if(selector==0){
+	if(selector==0){//Racing Cars
+		TIM_Cmd(LPC_TIM0, ENABLE);//activo el TIM0 que controla este juego
 		menuRC();
 	}
-	else if(selector==1){
+	else if(selector==1){//Pong
+		TIM_Cmd(LPC_TIM1, ENABLE);//activo el TIM1 que controla este juego
 		menuPong();
 	}
 	else if(selector==2){
@@ -75,11 +76,6 @@ void confPIN(void){
 	PinCfg.Pinnum = 2;
 	PinCfg.Portnum = PUERTO0;
 	GPIO_SetDir(PUERTO0,PinTx,OUTPUT);
-	PINSEL_ConfigPin(&PinCfg);
-
-	//Pin 3 puerto 0 como Rx UART0
-	PinCfg.Pinnum = 3;
-	GPIO_SetDir(PUERTO0,PinRx,INPUT);
 	PINSEL_ConfigPin(&PinCfg);
 
 	//Pin 0 puerto 2 para interrupcion por gpio
@@ -120,7 +116,7 @@ void confPIN(void){
 }
 
 void confGPIO(void){
-	//configuro interrupciones por gpio en p2.0-2
+	//configuro interrupciones por gpio en p2.0-4
 
 	LPC_GPIOINT->IO2IntEnR |= Pin0;
 	LPC_GPIOINT->IO2IntEnR |= Pin1;
@@ -167,7 +163,7 @@ void confTIMER0(uint32_t ticks){
 	TIMERCfg.PrescaleValue = ticks;//ticks/25MHz
 
 	//Configuro el Match0 para que cuando TC cuente 1000 veces interrumpa
-	//y resetee. Así puedo actualizar la pantalla cada 0.8-0.6-0.4-0.2 seg
+	//y resetee. Así puedo actualizar la pantalla cada fraccion de segundo, segun la dificultad
 	MATCHCfg.ExtMatchOutputType = TIM_EXTMATCH_NOTHING;
 	MATCHCfg.IntOnMatch = ENABLE;
 	MATCHCfg.ResetOnMatch = ENABLE;
@@ -177,7 +173,6 @@ void confTIMER0(uint32_t ticks){
 
 	TIM_Init(LPC_TIM0, TIM_TIMER_MODE, &TIMERCfg);
 	TIM_ConfigMatch(LPC_TIM0, &MATCHCfg);
-	TIM_Cmd(LPC_TIM0, ENABLE);
 
 	NVIC_EnableIRQ(TIMER0_IRQn);
 
@@ -193,7 +188,7 @@ void confTIMER1(uint32_t ticks){
 	TIMERCfg.PrescaleValue = ticks;//ticks/25MHz
 
 	//Configuro el Match0 para que cuando TC cuente 1000 veces interrumpa
-	//y resetee. Así puedo actualizar la pantalla cada 0.8-0.6-0.4-0.2 seg
+	//y resetee. Así puedo actualizar la pantalla dependiendo lo que elija en el menu Pong
 	MATCHCfg.ExtMatchOutputType = TIM_EXTMATCH_NOTHING;
 	MATCHCfg.IntOnMatch = ENABLE;
 	MATCHCfg.ResetOnMatch = ENABLE;
@@ -203,7 +198,7 @@ void confTIMER1(uint32_t ticks){
 
 	TIM_Init(LPC_TIM1, TIM_TIMER_MODE, &TIMERCfg);
 	TIM_ConfigMatch(LPC_TIM1, &MATCHCfg);
-	TIM_Cmd(LPC_TIM1, ENABLE);
+
 
 	NVIC_EnableIRQ(TIMER1_IRQn);
 
@@ -238,11 +233,12 @@ void ADCOff(void){
 void TIMER0_IRQHandler(void){
 	//se encarga de actualizar la pantalla
 
+	static uint8_t puntos = 0;
 	static uint8_t lado_obst = 0;
 	static uint8_t i = 0;
 	static uint8_t cont = 0;//controla en donde se dibuja el obstaculo
 
-	if(cont==0){
+	if(cont==0){//le da un carril a cada obstaculo de la matriz de direcciones
 		lado_obst = direccion_obst[i];
 		i++;
 		if(i==sizeof(direccion_obst)-1){
@@ -254,6 +250,7 @@ void TIMER0_IRQHandler(void){
 
 	sendTope();
 //dependiendo la cantidad de frames que pasaron dibuja el obstaculo en donde corresponde
+//en su posicion "y", y le agrega pista arriba y debajo
 	if(cont==0){
 		sendObstaculo(lado_obst);
 		sendPista(4);
@@ -298,44 +295,50 @@ void TIMER0_IRQHandler(void){
 	}
 
 	cont++;
-	if(cont==7){cont=0;}//ya se paso el obstaculo y se "genera" otro
+	if(cont==7){
+		cont=0;
+		puntos++;
+	}//ya se paso el obstaculo y se "genera" otro, se suma 1 punto
 
 	if(autos==0){//si no hubo que dibujar obstaculo al lado de auto viene aca
-		//pantalla de transicion cuando se cambia de un carril al otro(auto en el centro)
-		if(cambio_lado){
-			sendAuto(1);
-			cambio_lado = 0;
-		}
-		//si no hay cambio de carril se dibuja el auto en el correspondiente
-		else{
-			sendAuto(ctrl_lado);
-		}
+		sendAuto(ctrl_lado);
 	}
 
 	sendTope();
 
+	sendNivel(puntos);//indica puntaje y nivel actuales
+
+	sendTope();
+
 	autos = 0;
+
+	if((puntos+1)%30 == 0){//cada 3 niveles disminuye el timer, por lo que aumenta dificultad
+		LPC_TIM0->PR = dificultadRC - (puntos/30)*500;
+	}
 
 	TIM_ClearIntPending(LPC_TIM0, TIM_MR0_INT);
 	return;
 }
 
 void TIMER1_IRQHandler(void){
-	static uint8_t x_pelota = 8;
-	static uint8_t cont = 5;
-	static uint8_t sentido = 0;
-	static uint8_t goles1 = 0;
+	static uint8_t x_pelota = 8;//determina coord x de la pelota
+	static uint8_t cont = 5;//sera la coord y de la pelota, comienza en 5:centro
+	static uint8_t sentido = 0;//controla el sentido del mov de la pelota
+	static uint8_t goles1 = 0;//goles de c/ jugador
 	static uint8_t goles2 = 0;
 
 	UART_SendByte(LPC_UART0,12);//caracter para nueva pagina
 
 	sendTope();
 
-	sendGoles(goles1, goles2);
+	sendGoles(goles1, goles2);//dibuja puntuacion
 
-	sendPaleta(paleta1);
+	sendTope();
 
-	/*lineas vacias y linea con pelota*/
+	sendPaleta(paleta1);//dibuja paleta de arriba
+
+	//dependiendo la coord y de la pelota dibuja la cancha
+	//y la pelota en su coord x
 	if(cont==0){
 		sendPelota(x_pelota);
 		sendLineas(9);
@@ -387,29 +390,29 @@ void TIMER1_IRQHandler(void){
 
 	if(sentido==0){
 		cont++;
-		if(cont==10){
+		if(cont==10){//en este sentido si llega a 10 llega al tope
 			//veo si tiene que rebotar o es gol
 			if(paleta2 != 1){
-				cont = 5;
-				goles1++;
+				cont = 5;//fue gol, pelota al medio
+				goles1++;//suma gol a player1
 			}
-			sentido = 1;
+			sentido = 1;//cambia de sentido
 		}
 	}
 	if(sentido==1){
 		cont--;
-		if(cont>=255){
-			sentido = 0;
+		if(cont>=255){//en este sentido si baja de 0 llega al tope
+			sentido = 0;//cambia sentido
 			cont = 0;
 			//veo si tiene que rebotar o es gol
 			if(paleta1 != 1){
-				cont = 5;
-				goles2++;
+				cont = 5;//fue gol, pelota al medio
+				goles2++;//suma gol player2
 			}
 		}
 	}
 
-	sendPaleta(paleta2);
+	sendPaleta(paleta2);//dibuja paleta jug2
 
 	sendTope();
 
@@ -421,44 +424,39 @@ void EINT3_IRQHandler(void){
 	for(uint32_t i = 0; i<10000;i++);//retardo antirrebote
 
 	//boton "start", para avanzar de menu
-	if(LPC_GPIOINT->IO2IntStatR == 1){
+	if(LPC_GPIOINT->IO2IntStatR == 1){//p2.0
 		ctrl_menu = 0;
 		GPIO_ClearInt(PUERTO2, Pin0);
 	}
+
 	//dirige el movimiento del auto entre los carriles
-	else if(LPC_GPIOINT->IO2IntStatR == 2){
-		if(juego==0){
-			if(ctrl_lado==0){//el auto va de un carril al otro y genera la transicion del medio
-				cambio_lado = 1;
-			}
-			ctrl_lado = 1;
+	else if(LPC_GPIOINT->IO2IntStatR == 2){//p2.1
+		if(juego==0){//si es racing cars
+			ctrl_lado = 1;//auto a la derecha
 		}
-		else if(juego==1){
-			paleta1++;
+		else if(juego==1){//si es pong
+			paleta1++;//paleta1 a la derecha
 			if(paleta1==3){paleta1 = 2;}
 		}
 		GPIO_ClearInt(PUERTO2, Pin1);
 	}
-	else if(LPC_GPIOINT->IO2IntStatR == 4){
-		if(juego==0){
-			if(ctrl_lado==2){
-				cambio_lado = 1;
-			}
-			ctrl_lado = 0;
+	else if(LPC_GPIOINT->IO2IntStatR == 4){//p2.2
+		if(juego==0){//si es racing cars
+			ctrl_lado = 0;//auto a la izq
 		}
-		else if(juego==1){
-			paleta1--;
+		else if(juego==1){//si es pong
+			paleta1--;//paleta1 a la izquierda
 			if(paleta1>=255){paleta1 = 0;}
 		}
 		GPIO_ClearInt(PUERTO2, Pin2);
 	}
-	else if(LPC_GPIOINT->IO2IntStatR == 8){
-		paleta2++;
+	else if(LPC_GPIOINT->IO2IntStatR == 8){//p2.3
+		paleta2++;//paleta jug2 a la derecha
 		if(paleta2==3){paleta2 = 2;}
 		GPIO_ClearInt(PUERTO2, Pin3);
 	}
-	else if(LPC_GPIOINT->IO2IntStatR == 16){
-		paleta2--;
+	else if(LPC_GPIOINT->IO2IntStatR == 16){//p2.4
+		paleta2--;//plaeta jug2 a la izquierda
 		if(paleta2>=255){paleta2 = 0;}
 		GPIO_ClearInt(PUERTO2, Pin4);
 	}
@@ -473,19 +471,19 @@ void ADC_IRQHandler(){
 	adc0_value = 0xFFF&((LPC_ADC->ADDR0)>>4);
 
 	if(adc0_value<560){
-		dificultadRC = 11000;
-		selector = 0;
+		dificultadRC = 11000;//dificultad mas facil (mas lenta la interrupcion)
+		selector = 0;//juego Racing Car
 	}
 	else if((adc0_value>=560) && (adc0_value<2048)){
 		dificultadRC = 9000;
-		selector = 1;
+		selector = 1;//juego Pong
 	}
 	else if((adc0_value>=2048) && (adc0_value<3536)){
 		dificultadRC = 7000;
 		selector = 2;
 	}
 	else{
-		dificultadRC = 4500;
+		dificultadRC = 5000;//dificultad mas dificil (mas rapida la interrupcion)
 		selector = 3;
 	}
 
@@ -497,29 +495,29 @@ void menuPpal(void){
 	confADC();
 
 	while(ctrl_menu){
-		sendMenuPpal(selector);
+		sendMenuPpal(selector);//dibuja el menu
 	}
 
-	juego = selector;
+	juego = selector;//cuando se avanzo determina que juego se eligio
 
-	ctrl_menu = 1;
+	ctrl_menu = 1;//vuelve a "trabar" en el proximo menu
 
-	ADCOff();
+	ADCOff();//apaga adc, no se usa mas
 
 	return;
 }
 
 void menuRC(void){
 	//menu del juego de autos, elijo la dificultad
-	confADC();
+	confADC();//vuelvo a prender ADC para la dificultad
 
 	while(ctrl_menu){
-		sendMenuRC(dificultadRC);
+		sendMenuRC(dificultadRC);//dibuja menu
 	}
 
 	ctrl_menu = 1;
 
-	confTIMER0(dificultadRC);
+	confTIMER0(dificultadRC);//configura el tim0 segun la dificultad elegida
 
 	ADCOff();
 
@@ -529,12 +527,12 @@ void menuRC(void){
 void menuPong(void){
 
 	while(ctrl_menu){
-		sendMenuPong();
+		sendMenuPong();//dibuja menu
 	}
 
 	ctrl_menu = 1;
 
-	confTIMER1(5000);
+	confTIMER1(5000);//configura el tim1 p/ que interrumpa c/ 0.2 s
 
 	return;
 }
@@ -546,7 +544,7 @@ void sendMenuPpal(uint8_t juego){
 
 	sendTope();
 
-	if(selector == 0){
+	if(selector == 0){//dependiendo que juego estaria eligiendo muestra el menu
 		UART_Send(LPC_UART0,menu_screen1,sizeof(menu_screen1),BLOCKING);
 	}
 	else if(selector == 1){
@@ -561,13 +559,13 @@ void sendMenuPpal(uint8_t juego){
 
 	sendTope();
 
-	for(uint32_t i=0; i<400000; i++);
+	for(uint32_t i=0; i<400000; i++);//retardo para que se estabilice la pantalla
 
 	return;
 }
 
 void sendTope(void){
-	//dibuja tope sup e inf de pantalla
+	//dibuja tope con guiones
 	UART_Send(LPC_UART0,tope,sizeof(tope),BLOCKING);
 
 	return;

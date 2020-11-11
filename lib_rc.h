@@ -20,5 +20,6 @@ void sendAuto_Obst(uint8_t lado, uint8_t momento);
 void sendPista(uint8_t lineas);//funcion para dibujar lineas de pista
 void sendLost(void);
 void sendTope(void);
+void sendNivel(uint8_t pts);
 
 #endif /* LIB_RC_H_ */

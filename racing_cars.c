@@ -88,9 +88,7 @@ uint8_t lose_screen[] =
 		"-\t       | |\t\t-\n\r"
 		"-\t       | |\t\t-\n\r"
 		"-\t       | |\t\t-\n\r"
-		"-\t    ((/   \\))\t\t-\n\r"
-		"-\t\t\t\t-\n\r"
-		"-\tSigue intentando\t-\n\r";
+		"-\t    ((/   \\))\t\t-\n\r";
 
 uint8_t auto_izq[] =
 		"-\t--\t \t\t-\n\r"
@@ -128,11 +126,11 @@ uint8_t auto_der3[] =
 		"-\t00\t \t--\t-\n\r"
 		"-\t00\t|     o----o\t-\n\r";
 
-uint8_t auto_cen[]=
+/*uint8_t auto_cen[]=
 		"-\t\t--\t\t-\n\r"
 		"-\t      o----o\t\t-\n\r"
 		"-\t\t--\t\t-\n\r"
-		"-\t      o----o\t\t-\n\r";
+		"-\t      o----o\t\t-\n\r";*/
 
 uint8_t obst_izq[] =
 		"-\t00\t \t\t-\n\r"
@@ -146,13 +144,23 @@ uint8_t linea[15] = "-\t\t|\t\t-\n\r";
 
 uint8_t no_linea[16] = "-\t\t \t\t-\n\r";
 
+uint8_t nivel[] = "-\tNivel: ";
+
+uint8_t puntuacion[] = "-\tPuntuacion: ";
+
+uint8_t punt_fin[] = "-\tTu puntaje fue: ";
+
+uint8_t sigue[] = "-\tSigue intentando\t-\n\r";
+
+uint8_t fin[] = "\t\t-\n\r";
+
 void sendMenuRC(uint32_t dificultad){
 	//dibuja el menu juego autos... segun variable dificultad manejada por adc destaca que dificultad
 	UART_SendByte(LPC_UART0,12);//caracter para nueva pagina
 
 	sendTope();
 
-	if(dificultad == 4500){
+	if(dificultad == 5000){
 		UART_Send(LPC_UART0,menuRC_screen1,sizeof(menuRC_screen1),BLOCKING);
 	}
 	else if(dificultad == 7000){
@@ -179,9 +187,6 @@ void sendAuto(uint8_t lado){
 	}
 	else if(lado==1){
 		UART_Send(LPC_UART0,auto_der,sizeof(auto_der),BLOCKING);
-	}
-	else{
-		UART_Send(LPC_UART0,auto_cen,sizeof(auto_cen),BLOCKING);
 	}
 
 	return;
@@ -228,11 +233,42 @@ void sendAuto_Obst(uint8_t lado, uint8_t momento){
 }
 
 void sendLost(void){
-
+	//dibuja la pantalla cuando se pierde
 	UART_SendByte(LPC_UART0,12);
 	sendTope();
 	UART_Send(LPC_UART0,lose_screen,sizeof(lose_screen),BLOCKING);
+	UART_Send(LPC_UART0,punt_fin,sizeof(punt_fin),BLOCKING);
+	UART_SendByte(LPC_UART0,48);
+	UART_Send(LPC_UART0,fin,sizeof(fin),BLOCKING);
+	UART_Send(LPC_UART0,sigue,sizeof(sigue),BLOCKING);
 	sendTope();
 
+	return;
+}
+
+void sendNivel(uint8_t pts){
+	//controla y dibuja la puntuacion actual
+	uint8_t decenas = 0;
+	uint8_t centenas = 0;
+	uint8_t puntos[3] = {};
+
+	decenas = pts/10;
+
+	pts = pts%10;
+
+	centenas += 48;//se pasan a ascii
+	decenas += 49;
+	pts += 48;
+
+	puntos[0] = centenas;
+	puntos[1] = decenas - 1;
+	puntos[2] = pts;
+
+	UART_Send(LPC_UART0,puntuacion,sizeof(puntuacion),BLOCKING);
+	UART_Send(LPC_UART0,puntos,sizeof(puntos),BLOCKING);
+	UART_Send(LPC_UART0,fin,sizeof(fin),BLOCKING);
+	UART_Send(LPC_UART0,nivel,sizeof(nivel),BLOCKING);
+	UART_SendByte(LPC_UART0,decenas);//nivel
+	UART_Send(LPC_UART0,fin,sizeof(fin),BLOCKING);
 	return;
 }
