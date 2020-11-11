@@ -15,8 +15,9 @@ void menuPong(void);
 
 void sendMenuPong(void);
 void sendPaleta(uint8_t jugador);
-void sendPelota(void);
+void sendPelota(uint8_t x_coord);
 void sendLineas(uint8_t num);
+void sendGoles(uint8_t jug1, uint8_t jug2);
 void sendTope(void);
 
 

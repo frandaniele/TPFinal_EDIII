@@ -62,7 +62,7 @@ int main(void) {
     while(1) {
 
     }
-    return 0 ;
+    return 0;
 }
 
 void confPIN(void){
@@ -321,75 +321,91 @@ void TIMER0_IRQHandler(void){
 }
 
 void TIMER1_IRQHandler(void){
-	static uint8_t x_pelota = 0;
-	static uint8_t cont = 0;
+	static uint8_t x_pelota = 8;
+	static uint8_t cont = 5;
 	static uint8_t sentido = 0;
+	static uint8_t goles1 = 0;
+	static uint8_t goles2 = 0;
 
 	UART_SendByte(LPC_UART0,12);//caracter para nueva pagina
 
 	sendTope();
 
+	sendGoles(goles1, goles2);
+
 	sendPaleta(paleta1);
 
 	/*lineas vacias y linea con pelota*/
 	if(cont==0){
-		sendPelota();
+		sendPelota(x_pelota);
 		sendLineas(9);
 	}
 	else if(cont==1){
 		sendLineas(1);
-		sendPelota();
+		sendPelota(x_pelota);
 		sendLineas(8);
 	}
 	else if(cont==2){
 		sendLineas(2);
-		sendPelota();
+		sendPelota(x_pelota);
 		sendLineas(7);
 	}
 	else if(cont==3){
 		sendLineas(3);
-		sendPelota();
+		sendPelota(x_pelota);
 		sendLineas(6);
 	}
 	else if(cont==4){
 		sendLineas(4);
-		sendPelota();
+		sendPelota(x_pelota);
 		sendLineas(5);
 	}
 	else if(cont==5){
 		sendLineas(5);
-		sendPelota();
+		sendPelota(x_pelota);
 		sendLineas(4);
 	}
 	else if(cont==6){
 		sendLineas(6);
-		sendPelota();
+		sendPelota(x_pelota);
 		sendLineas(3);
 	}
 	else if(cont==7){
 		sendLineas(7);
-		sendPelota();
+		sendPelota(x_pelota);
 		sendLineas(2);
 	}
 	else if(cont==8){
 		sendLineas(8);
-		sendPelota();
+		sendPelota(x_pelota);
 		sendLineas(1);
 	}
 	else if(cont==9){
 		sendLineas(9);
-		sendPelota();
+		sendPelota(x_pelota);
 	}
 
 	if(sentido==0){
 		cont++;
-		if(cont==10){sentido = 1;}
+		if(cont==10){
+			//veo si tiene que rebotar o es gol
+			if(paleta2 != 1){
+				cont = 5;
+				goles1++;
+			}
+			sentido = 1;
+		}
 	}
 	if(sentido==1){
 		cont--;
 		if(cont>=255){
 			sentido = 0;
 			cont = 0;
+			//veo si tiene que rebotar o es gol
+			if(paleta1 != 1){
+				cont = 5;
+				goles2++;
+			}
 		}
 	}
 
