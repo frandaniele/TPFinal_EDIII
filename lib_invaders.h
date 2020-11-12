@@ -16,9 +16,9 @@ void sendNave(uint8_t lado_navecita);
 void sendWin(void);
 void sendLost(void);
 void sendTope(void);
-void sendAliens(void);
+void sendAliens(uint8_t aliens[]);
 void sendDisparo(uint8_t lado);
 void menuAlien(void);
-void SendLinea(uint8_t cantLineas);
+void sendLinea(uint8_t cantLineas);
 
 #endif /* LIB_INVADERS_H_ */

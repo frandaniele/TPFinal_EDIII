@@ -20,6 +20,4 @@ void sendLineas(uint8_t num);
 void sendGoles(uint8_t jug1, uint8_t jug2);
 void sendTope(void);
 
-
-
 #endif /* LIB_PONG_H_ */
