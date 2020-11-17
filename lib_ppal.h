@@ -31,6 +31,8 @@ void confADC(void);
 void ADCOff(void);
 
 void menuPpal(void);
+void reset(void);
+void menuJuego(uint8_t juego);
 
 void sendMenuPpal(uint8_t juego);
 void sendTope(void);//dibuja guiones como tope de pantalla

@@ -32,6 +32,7 @@ uint8_t juego = 0;//0:RC,1:Pong,2:Invaders,3... variable que no cambia, al contr
 
 //----------------------VARIABLES Racing Car----------------------//
 uint8_t ctrl_lado = 0;//controla en que lado esta el auto
+uint8_t cont = 0;//controla en donde se dibuja el obstaculo
 uint32_t dificultadRC = 0;//obtiene un valor segun lo medido en el potenciometro
 uint8_t autos = 0;//varaible para saber si se dibujo un auto o no
 //array para darle distintas direcciones a los obstaculos
@@ -40,13 +41,14 @@ uint8_t direccion_obst[] = {0,0,1,0,1,1,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,1,1,0,
 //----------------------VARIABLES Pong----------------------//
 uint8_t paleta1 = 1;//controlan la posicion de las paletas
 uint8_t paleta2 = 1;
+uint8_t goles1 = 0;//goles de c/ jugador
+uint8_t goles2 = 0;
 
 //----------------------VARIABLES Invaders----------------------//
 uint8_t cont_bala = 0;//contador para saber donde esta el obstaculo
 uint8_t lado_navecita = 1;//1 es izq, 2 es centro, 3 es derecha
 uint8_t lado_bala = 0;
 uint8_t aliens_vivos[3] = {1,2,3};
-uint8_t aliens_muertos = 0;
 uint8_t disparo = 0;
 
 //----------------------Main program----------------------//
@@ -60,22 +62,7 @@ int main(void) {
 
 	menuPpal();
 
-//"arranca" el menu del juego elegido
-	if(selector==0){//Racing Cars
-		menuRC();
-		TIM_Cmd(LPC_TIM0, ENABLE);//activo el TIM0 que controla este juego
-	}
-	else if(selector==1){//Pong
-		menuPong();
-		TIM_Cmd(LPC_TIM1, ENABLE);//activo el TIM1 que controla este juego
-	}
-	else if(selector==2){
-		menuAlien();
-		TIM_Cmd(LPC_TIM3, ENABLE);//activo el TIM3 que controla este juego
-	}
-	else{
-
-	}
+	menuJuego(selector);
 
     while(1) {
 
@@ -149,6 +136,8 @@ void confGPIO(void){
 	GPIO_ClearInt(PUERTO2, Pin3);
 	GPIO_ClearInt(PUERTO2, Pin4);
 
+	NVIC_SetPriority(EINT3_IRQn,0);
+
 	NVIC_EnableIRQ(EINT3_IRQn);
 
 	return;
@@ -193,6 +182,7 @@ void confTIMER0(uint32_t ticks){
 	TIM_Init(LPC_TIM0, TIM_TIMER_MODE, &TIMERCfg);
 	TIM_ConfigMatch(LPC_TIM0, &MATCHCfg);
 
+	NVIC_SetPriority(TIMER0_IRQn,1);
 	NVIC_EnableIRQ(TIMER0_IRQn);
 
 	return;
@@ -218,7 +208,7 @@ void confTIMER1(uint32_t ticks){
 	TIM_Init(LPC_TIM1, TIM_TIMER_MODE, &TIMERCfg);
 	TIM_ConfigMatch(LPC_TIM1, &MATCHCfg);
 
-
+	NVIC_SetPriority(TIMER1_IRQn,2);
 	NVIC_EnableIRQ(TIMER1_IRQn);
 
 	return;
@@ -244,11 +234,11 @@ void confTIMER3(uint32_t ticks){
 	TIM_Init(LPC_TIM3, TIM_TIMER_MODE, &TIMERCfg);
 	TIM_ConfigMatch(LPC_TIM3, &MATCHCfg);
 
+	NVIC_SetPriority(TIMER3_IRQn,3);
 	NVIC_EnableIRQ(TIMER3_IRQn);
 
 	return;
 }
-
 
 void confADC(void){
 	//configuro el ADC modo burst para luego elegir juego y dificultad
@@ -283,7 +273,6 @@ void TIMER0_IRQHandler(void){
 	static uint8_t puntos = 0;
 	static uint8_t lado_obst = 0;
 	static uint8_t i = 0;
-	static uint8_t cont = 0;//controla en donde se dibuja el obstaculo
 
 	if(cont==0){//le da un carril a cada obstaculo de la matriz de direcciones
 		lado_obst = direccion_obst[i];
@@ -327,7 +316,7 @@ void TIMER0_IRQHandler(void){
 	else if(cont==5 || cont==6){
 		if(ctrl_lado==lado_obst){
 			sendLost();
-			while(1);
+			reset();
 		}
 		else{
 			sendPista(5);
@@ -371,10 +360,8 @@ void TIMER1_IRQHandler(void){
 	//se encarga de actualizar la pantalla y manejar la logica del juego Pong
 
 	static uint8_t x_pelota = 8;//determina coord x de la pelota
-	static uint8_t cont = 5;//sera la coord y de la pelota, comienza en 5:centro
+	static uint8_t contP = 5;//sera la coord y de la pelota, comienza en 5:centro
 	static uint8_t sentido = 0;//controla el sentido del mov de la pelota
-	static uint8_t goles1 = 0;//goles de c/ jugador
-	static uint8_t goles2 = 0;
 
 	UART_SendByte(LPC_UART0,12);//caracter para nueva pagina
 
@@ -388,74 +375,74 @@ void TIMER1_IRQHandler(void){
 
 	//dependiendo la coord y de la pelota dibuja la cancha
 	//y la pelota en su coord x
-	if(cont==0){
+	if(contP==0){
 		sendPelota(x_pelota);
 		sendLineas(9);
 	}
-	else if(cont==1){
+	else if(contP==1){
 		sendLineas(1);
 		sendPelota(x_pelota);
 		sendLineas(8);
 	}
-	else if(cont==2){
+	else if(contP==2){
 		sendLineas(2);
 		sendPelota(x_pelota);
 		sendLineas(7);
 	}
-	else if(cont==3){
+	else if(contP==3){
 		sendLineas(3);
 		sendPelota(x_pelota);
 		sendLineas(6);
 	}
-	else if(cont==4){
+	else if(contP==4){
 		sendLineas(4);
 		sendPelota(x_pelota);
 		sendLineas(5);
 	}
-	else if(cont==5){
+	else if(contP==5){
 		sendLineas(5);
 		sendPelota(x_pelota);
 		sendLineas(4);
 	}
-	else if(cont==6){
+	else if(contP==6){
 		sendLineas(6);
 		sendPelota(x_pelota);
 		sendLineas(3);
 	}
-	else if(cont==7){
+	else if(contP==7){
 		sendLineas(7);
 		sendPelota(x_pelota);
 		sendLineas(2);
 	}
-	else if(cont==8){
+	else if(contP==8){
 		sendLineas(8);
 		sendPelota(x_pelota);
 		sendLineas(1);
 	}
-	else if(cont==9){
+	else if(contP==9){
 		sendLineas(9);
 		sendPelota(x_pelota);
 	}
 
 	if(sentido==0){
-		cont++;
-		if(cont==10){//en este sentido si llega a 10 llega al tope
+		contP++;
+		if(contP==10){//en este sentido si llega a 10 llega al tope
 			//veo si tiene que rebotar o es gol
 			if(paleta2 != 1){
-				cont = 5;//fue gol, pelota al medio
+				contP = 5;//fue gol, pelota al medio
 				goles1++;//suma gol a player1
 			}
 			sentido = 1;//cambia de sentido
 		}
 	}
 	if(sentido==1){
-		cont--;
-		if(cont>=255){//en este sentido si baja de 0 llega al tope
+		contP--;
+		if(contP>=255){//en este sentido si baja de 0 llega al tope
 			sentido = 0;//cambia sentido
 			cont = 0;
 			//veo si tiene que rebotar o es gol
 			if(paleta1 != 1){
-				cont = 5;//fue gol, pelota al medio
+				contP = 5;//fue gol, pelota al medio
 				goles2++;//suma gol player2
 			}
 		}
@@ -464,6 +451,11 @@ void TIMER1_IRQHandler(void){
 	sendPaleta(paleta2);//dibuja paleta jug2
 
 	sendTope();
+
+	if(goles1 == 10 || goles2 == 10){
+		sendWin();
+		reset();
+	}
 
 	TIM_ClearIntPending(LPC_TIM1, TIM_MR0_INT);
 	return;
@@ -508,18 +500,15 @@ void TIMER3_IRQHandler(void){
 					//BOOM
 					aliens_vivos[i] = 0;
 				}
-				if (aliens_vivos[i] == 0) {
-					//BOOM
-					aliens_muertos++;
-				}
 			}
 			sendLinea(5);
 		}
 		if ((aliens_vivos[0]+aliens_vivos[1]+aliens_vivos[2])==0) {
 			// YOU WIN
-			UART_SendByte(LPC_UART0,12);//caracter para nueva pagina
+			cont_bala = 0;
+			lado_navecita = 1;
 			sendWin();
-			while(1) {};
+			reset();
 		}
 
 		cont_bala++;
@@ -585,12 +574,16 @@ void EINT3_IRQHandler(void){
 
 	//dirige movimiento de paleta 2 a la derecha o la nave dispara
 	else if(LPC_GPIOINT->IO2IntStatR == 8){//p2.3
-		if (!disparo) {
+		if(juego==1){//pong
+			paleta2++;//paleta jug2 a la derecha
+			if(paleta2==3){paleta2 = 2;}
+		}
+		if(juego==2){//invaders
+			if (!disparo) {
 				disparo = 1;
 				lado_bala = lado_navecita;
 			}
-		paleta2++;//paleta jug2 a la derecha
-		if(paleta2==3){paleta2 = 2;}
+		}
 		GPIO_ClearInt(PUERTO2, Pin3);
 	}
 
@@ -636,6 +629,8 @@ void menuPpal(void){
 	//es el menu principal, elijo que juego quiero jugar
 	confADC();
 
+	ctrl_menu = 1;
+
 	while(ctrl_menu){
 		sendMenuPpal(selector);//dibuja el menu
 	}
@@ -645,6 +640,35 @@ void menuPpal(void){
 	juego = selector;//cuando se avanzo determina que juego se eligio
 
 	ctrl_menu = 1;//vuelve a "trabar" en el proximo menu
+
+	return;
+}
+
+void reset(void){
+	if(selector==0){
+		TIM_Cmd(LPC_TIM0, DISABLE);//desactivo el TIM0 para preparar el de otro juego
+		//NVIC_DisableIRQ(TIMER0_IRQn);
+		cont = 0;
+	}
+	else if(selector==1){
+		TIM_Cmd(LPC_TIM1, DISABLE);//desactivo el TIM1 para preparar el de otro juego
+		//NVIC_DisableIRQ(TIMER1_IRQn);
+		goles1 = 0;
+		goles2 = 0;
+	}
+	if(selector==2){
+		TIM_Cmd(LPC_TIM3, DISABLE);//desactivo el TIM3 para preparar el de otro juego
+		//NVIC_DisableIRQ(TIMER3_IRQn);
+		aliens_vivos[0] = 1;
+		aliens_vivos[1] = 2;
+		aliens_vivos[2] = 3;
+		disparo = 0;
+	}
+
+	while(ctrl_menu);
+	menuPpal();
+
+	menuJuego(selector);
 
 	return;
 }
@@ -693,6 +717,28 @@ void menuAlien(void){
 }
 
 //----------------------Funciones de dibujo generales----------------------//
+
+void menuJuego(uint8_t juego){
+	//"arranca" el menu del juego elegido
+
+	if(juego==0){//Racing Cars
+		menuRC();
+		TIM_Cmd(LPC_TIM0, ENABLE);//activo el TIM0 que controla este juego
+	}
+	else if(juego==1){//Pong
+		menuPong();
+		TIM_Cmd(LPC_TIM1, ENABLE);//activo el TIM1 que controla este juego
+	}
+	else if(juego==2){//invaders
+		menuAlien();
+		TIM_Cmd(LPC_TIM3, ENABLE);//activo el TIM3 que controla este juego
+	}
+	else{//assassins creed (en desarrollo)
+
+	}
+
+	return;
+}
 
 void sendMenuPpal(uint8_t juego){
 	//dibuja el menu principal... segun el selector manejada por adc destaca que juego se elegira
